@@ -21,6 +21,7 @@ from price_parser import parse_price
 AMAZON_URLS = {
     "BASE_URL": "https://{domain}/",
     "CART_URL": "https://{domain}/gp/aws/cart/add.html",
+    "SINGLE_URL": "https://{domain}/dp/",
 }
 CHECKOUT_URL = "https://{domain}/gp/cart/desktop/go-to-checkout.html/ref=ox_sc_proceed?partialCheckoutCart=1&isToBeGiftWrappedBefore=0&proceedToRetailCheckout=Proceed+to+checkout&proceedToCheckout=1&cartInitiateId={cart_id}"
 
@@ -199,12 +200,33 @@ class Amazon:
         self.checkout(test=test)
 
     def something_in_stock(self):
-        #params = {"anticache": str(secrets.token_urlsafe(32))}
+
+        if len(self.asin_list) == 1:
+            asin = self.asin_list[0]
+            f = furl(AMAZON_URLS["SINGLE_URL"] + asin)
+            try:
+                self.driver.get(f.url)
+                buy_now = self.driver.find_element_by_xpath('//*[@id="buy-now-button"]')
+                atc = self.driver.find_element_by_xpath('//*[@id="add-to-cart-button"]')
+                price_element = self.driver.find_element_by_xpath('//*[@id="price_inside_buybox"]')
+                price_element = price_element.text
+            except Exception as e:
+                log.error("Hit an error looking for elements")
+                return False
+
+            if buy_now:
+                log.info("Found buy now button for item with asin " + asin)
+                self.price_check(price_element)
+                return True
+            elif atc:
+                log.info("Found add to cart button for item with asin " + asin)
+            else:
+                return False
+
         params = {}
         for x in range(len(self.asin_list)):
             params[f"ASIN.{x + 1}"] = self.asin_list[x]
             params[f"Quantity.{x + 1}"] = 1
-
         f = furl(AMAZON_URLS["CART_URL"])
         f.set(params)
         self.driver.get(f.url)
@@ -233,9 +255,16 @@ class Amazon:
                     log.info("{} appears to allow adding".format(asin))
                     return True
         self.check_if_captcha(self.wait_for_pages, ADD_TO_CART_TITLES)
-        price_element = self.driver.find_elements_by_xpath('//td[@class="price item-row"]')
+        price_element = self.driver.find_element_by_xpath('//td[@class="price item-row"]')
+        price_element = price_element.text
+        self.price_check(price_element)
+
+    def price_check(self, price_element, test=False):
         if price_element:
-            str_price = price_element[0].text
+            if len(self.asin_list) > 1:
+                str_price = price_element
+            else:
+                str_price = price_element
             log.info(f'Item Cost: {str_price}')
             price = parse_price(str_price)
             priceFloat = price.amount
@@ -249,6 +278,7 @@ class Amazon:
             return False
         else:
             return False
+
 
     def get_captcha_help(self):
         if not self.on_captcha_page():
@@ -381,42 +411,45 @@ class Amazon:
         log.info("Clicking continue.")
         self.driver.save_screenshot("screenshot.png")
         self.notification_handler.send_notification("Starting Checkout", True)
-        self.driver.find_element_by_xpath('//input[@value="add"]').click()
+        if len(self.asin_list) == 1:
+            self.driver.find_element_by_xpath('//*[@id="submit.buy-now"]').click()
+        else:
+            self.driver.find_element_by_xpath('//input[@value="add"]').click()
 
-        log.info("Waiting for Cart Page")
-        self.check_if_captcha(self.wait_for_pages, SHOPING_CART_TITLES)
-        self.driver.save_screenshot("screenshot.png")
-        self.notification_handler.send_notification("Cart Page", True)
+            log.info("Waiting for Cart Page")
+            self.check_if_captcha(self.wait_for_pages, SHOPING_CART_TITLES)
+            self.driver.save_screenshot("screenshot.png")
+            self.notification_handler.send_notification("Cart Page", True)
 
-        try:  # This is fast.
-            log.info("Quick redirect to checkout page")
-            cart_initiate_id = self.driver.find_element_by_name("cartInitiateId")
-            cart_initiate_id = cart_initiate_id.get_attribute("value")
-            self.driver.get(
-                CHECKOUT_URL.format(
-                    domain=self.amazon_website, cart_id=cart_initiate_id
+            try:  # This is fast.
+                log.info("Quick redirect to checkout page")
+                cart_initiate_id = self.driver.find_element_by_name("cartInitiateId")
+                cart_initiate_id = cart_initiate_id.get_attribute("value")
+                self.driver.get(
+                    CHECKOUT_URL.format(
+                        domain=self.amazon_website, cart_id=cart_initiate_id
+                    )
                 )
-            )
-        except:
-            log.info("clicking checkout.")
-            try:
-                self.driver.find_element_by_xpath(
-                    '//*[@id="sc-buy-box-ptc-button"]/span/input'
-                ).click()
-            finally:
-                self.driver.save_screenshot("screenshot.png")
-                self.notification_handler.send_notification(
-                    "Failed to checkout. Returning to stock check.", True
-                )
-                log.info("Failed to checkout. Returning to stock check.")
-                self.run_item(test=test)
+            except:
+                log.info("clicking checkout.")
+                try:
+                    self.driver.find_element_by_xpath(
+                        '//*[@id="sc-buy-box-ptc-button"]/span/input'
+                    ).click()
+                finally:
+                    self.driver.save_screenshot("screenshot.png")
+                    self.notification_handler.send_notification(
+                        "Failed to checkout. Returning to stock check.", True
+                    )
+                    log.info("Failed to checkout. Returning to stock check.")
+                    self.run_item(test=test)
 
-        log.info("Waiting for Place Your Order Page")
-        self.wait_for_pyo_page()
+            log.info("Waiting for Place Your Order Page")
+            self.wait_for_pyo_page()
 
-        log.info("Finishing checkout")
-        self.driver.save_screenshot("screenshot.png")
-        self.notification_handler.send_notification("Finishing checkout", True)
+            log.info("Finishing checkout")
+            self.driver.save_screenshot("screenshot.png")
+            self.notification_handler.send_notification("Finishing checkout", True)
 
         self.finalize_order_button(test)
 
