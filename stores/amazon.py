@@ -208,18 +208,34 @@ class Amazon:
                 self.driver.get(f.url)
                 buy_now = self.driver.find_element_by_xpath('//*[@id="buy-now-button"]')
                 atc = self.driver.find_element_by_xpath('//*[@id="add-to-cart-button"]')
-                price_element = self.driver.find_element_by_xpath('//*[@id="price_inside_buybox"]')
-                price_element = price_element.text
+                price_xpaths = [
+                    '//*[@id="priceblock_ourprice"]',
+                    '//*[@id="price_inside_buybox"]',
+                ]
+                for price_xpath in price_xpaths:
+                    if price_xpath:
+                        price_element = self.driver.find_element_by_xpath(price_xpath)
+                        price_element = price_element.text
+                        log.debug(f"{price_element} is less than reserve price of {self.reserve}")
+                        return True
+                    else:
+                        return False
             except Exception as e:
-                log.error("Hit an error looking for elements")
+                log.debug(e)
                 return False
 
             if buy_now:
                 log.info("Found buy now button for item with asin " + asin)
-                self.price_check(price_element)
-                return True
+                if self.price_check(price_element):
+                    return True
+                else:
+                    return False
             elif atc:
                 log.info("Found add to cart button for item with asin " + asin)
+                if self.price_check(price_element):
+                    return True
+                else:
+                    return False
             else:
                 return False
 
@@ -250,16 +266,22 @@ class Amazon:
                     #if len(self.asin_list) == 0:
                     #    log.error("No ASIN's left in list")
                     #    exit(1)
-                    continue
+                    pass
                 else:
                     log.info("{} appears to allow adding".format(asin))
                     return True
         self.check_if_captcha(self.wait_for_pages, ADD_TO_CART_TITLES)
-        price_element = self.driver.find_element_by_xpath('//td[@class="price item-row"]')
-        price_element = price_element.text
-        self.price_check(price_element)
+        try:
+            price_element = self.driver.find_element_by_xpath('//td[@class="price item-row"]')
+            price_element = price_element.text
+            if self.price_check(price_element):
+                return True
+            else:
+                return False
+        except:
+            return False
 
-    def price_check(self, price_element, test=False):
+    def price_check(self, price_element):
         if price_element:
             if len(self.asin_list) > 1:
                 str_price = price_element
@@ -275,7 +297,7 @@ class Amazon:
                 log.info("No stock available under reserve price")
                 #log.info("{}".format(self.asin_list))
                 return False
-            return False
+            #return False
         else:
             return False
 
