@@ -5,11 +5,11 @@ Pipfile.lock
 geckodriver.log
 .profile
 .profile-amz*
+.profile-wal*
 *_config.json
 *.log
 __pycache__/
 *.py[cod]
 *.pkl
 .vscode/
-/config/apprise_config.json
 /config/apprise_config.json
