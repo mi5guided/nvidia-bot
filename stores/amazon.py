@@ -199,10 +199,8 @@ class Amazon:
         )
         self.checkout(test=test)
 
-    def something_in_stock(self):
-
-        if len(self.asin_list) == 1:
-            asin = self.asin_list[0]
+    def single_buy(self, single_asin):
+            asin = single_asin
             f = furl(AMAZON_URLS["SINGLE_URL"] + asin)
             try:
                 self.driver.get(f.url)
@@ -239,6 +237,11 @@ class Amazon:
             else:
                 return False
 
+    def something_in_stock(self):
+
+        if len(self.asin_list) == 1:
+            self.single_buy(self.asin_list[0])
+
         params = {}
         for x in range(len(self.asin_list)):
             params[f"ASIN.{x + 1}"] = self.asin_list[x]
@@ -269,7 +272,18 @@ class Amazon:
                     pass
                 else:
                     log.info("{} appears to allow adding".format(asin))
-                    return True
+                    try:
+                        log.info("Hurr")
+                        price_element = self.driver.find_element_by_xpath('//td[@class="price item-row"]')
+                        log.info("Durr")
+                        price_element = price_element.text
+                        log.info("Here")
+                        if self.price_check(price_element):
+                            log.info("There")
+                            return True
+                    except:
+                        self.single_buy(asin)
+
         self.check_if_captcha(self.wait_for_pages, ADD_TO_CART_TITLES)
         try:
             price_element = self.driver.find_element_by_xpath('//td[@class="price item-row"]')
