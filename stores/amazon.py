@@ -200,47 +200,59 @@ class Amazon:
         self.checkout(test=test)
 
     def single_buy(self, single_asin):
-            asin = single_asin
-            f = furl(AMAZON_URLS["SINGLE_URL"] + asin)
-            try:
-                self.driver.get(f.url)
-                buy_now = self.driver.find_element_by_xpath('//*[@id="buy-now-button"]')
-                atc = self.driver.find_element_by_xpath('//*[@id="add-to-cart-button"]')
-                price_xpaths = [
-                    '//*[@id="priceblock_ourprice"]',
-                    '//*[@id="price_inside_buybox"]',
-                ]
-                for price_xpath in price_xpaths:
-                    if price_xpath:
-                        price_element = self.driver.find_element_by_xpath(price_xpath)
-                        price_element = price_element.text
-                        log.debug(f"{price_element} is less than reserve price of {self.reserve}")
-                        return True
-                    else:
-                        return False
-            except Exception as e:
-                log.debug(e)
-                return False
+        asin = single_asin
+        f = furl(AMAZON_URLS["SINGLE_URL"] + asin)
+        try:
+            self.driver.get(f.url)
+            bn_buttons = [
+                '//*[@id="buy.now-button"]',
+                '//*[@id="buy-now-button"]',
+            ]
+            for bn_button in bn_buttons:
+                log.info(f"In the button loop with {bn_button}")
+                if bn_button in self.driver.find_element_by_xpath(bn_button):
 
-            if buy_now:
-                log.info("Found buy now button for item with asin " + asin)
-                if self.price_check(price_element):
+                    self.driver.find_element_by_xpath(bn_button).click()
+                    continue
+                # //*[@id="buy-now-button"]
+            
+            atc = self.driver.find_element_by_xpath('//*[@id="add-to-cart-button"]')
+            price_xpaths = [
+                '//*[@id="priceblock_ourprice"]',
+                '//*[@id="price_inside_buybox"]',
+            ]
+            for price_xpath in price_xpaths:
+                if price_xpath:
+                    price_element = self.driver.find_element_by_xpath(price_xpath)
+                    price_element = price_element.text
+                    log.debug(f"{price_element} is less than reserve price of {self.reserve}")
                     return True
                 else:
                     return False
-            elif atc:
-                log.info("Found add to cart button for item with asin " + asin)
-                if self.price_check(price_element):
-                    return True
-                else:
-                    return False
+        except Exception as e:
+            log.debug(e)
+            return False
+
+        if buy_now:
+            log.info("Found buy now button for item with asin " + asin)
+            if self.price_check(price_element):
+                return True
             else:
                 return False
+        elif atc:
+            log.info("Found add to cart button for item with asin " + asin)
+            if self.price_check(price_element):
+                return True
+            else:
+                return False
+        else:
+            return False
 
     def something_in_stock(self):
 
         if len(self.asin_list) == 1:
             self.single_buy(self.asin_list[0])
+            return True
 
         params = {}
         for x in range(len(self.asin_list)):
@@ -306,7 +318,7 @@ class Amazon:
             priceFloat = price.amount
             if priceFloat <= self.reserve:
                 log.info("One or more items in stock and under reserve!")
-                return True
+                return
             else:
                 log.info("No stock available under reserve price")
                 #log.info("{}".format(self.asin_list))
@@ -404,6 +416,7 @@ class Amazon:
 
     def finalize_order_button(self, test, retry=0):
         button_xpaths = [
+            '//*[@id="turbo-checkout-pyo-button"]'
             '//*[@id="bottomSubmitOrderButtonId"]/span/input',
             '//*[@id="placeYourOrder"]/span/input',
             '//*[@id="submitOrderButtonId"]/span/input',
@@ -448,7 +461,13 @@ class Amazon:
         self.driver.save_screenshot("screenshot.png")
         self.notification_handler.send_notification("Starting Checkout", True)
         if len(self.asin_list) == 1:
-            self.driver.find_element_by_xpath('//*[@id="submit.buy-now"]').click()
+            bn_buttons = [
+                #'//*[@id="buy.now-button"]',
+                '//*[@id="buy-now-button"]',
+                ]
+            for bn_button in bn_buttons:
+                if bn_button:
+                    self.driver.find_element_by_xpath(bn_button).click()
         else:
             self.driver.find_element_by_xpath('//input[@value="add"]').click()
 
