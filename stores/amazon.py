@@ -209,13 +209,9 @@ class Amazon:
                 '//*[@id="buy-now-button"]',
             ]
             for bn_button in bn_buttons:
-                log.info(f"In the button loop with {bn_button}")
                 if bn_button in self.driver.find_element_by_xpath(bn_button):
-
                     self.driver.find_element_by_xpath(bn_button).click()
                     continue
-                # //*[@id="buy-now-button"]
-            
             atc = self.driver.find_element_by_xpath('//*[@id="add-to-cart-button"]')
             price_xpaths = [
                 '//*[@id="priceblock_ourprice"]',
@@ -415,21 +411,24 @@ class Amazon:
             self.login()
 
     def finalize_order_button(self, test, retry=0):
+        time.sleep(5)
         button_xpaths = [
-            '//*[@id="turbo-checkout-pyo-button"]'
-            '//*[@id="bottomSubmitOrderButtonId"]/span/input',
-            '//*[@id="placeYourOrder"]/span/input',
-            '//*[@id="submitOrderButtonId"]/span/input',
-            '//input[@name="placeYourOrder1"]',
+            '//*[@id="turbo-checkout-pyo-button"]',
+            '//*[@id="turbo-checkout-place-order-button-announce"]',
+            '//*[@id="place-order-form"]',
+            '//*[@id="turbo-checkout-place-order-button"]',
         ]
         button = None
+        self.driver.find_element_by_id("turbo-checkout-frame").click()
         for button_xpath in button_xpaths:
             try:
-                if (
-                    self.driver.find_element_by_xpath(button_xpath).is_displayed()
-                    and self.driver.find_element_by_xpath(button_xpath).is_enabled()
-                ):
+                #if (
+                #    self.driver.find_element_by_xpath(button_xpath).is_displayed()
+                #    and self.driver.find_element_by_xpath(button_xpath).is_enabled()
+                #):
+                if self.driver.find_element_by_xpath(button_xpath):
                     button = self.driver.find_element_by_xpath(button_xpath)
+                    log.info(f"{button_xpath}")
             except NoSuchElementException:
                 log.debug(f"{button_xpath}, lets try a different one.")
 
@@ -437,11 +436,19 @@ class Amazon:
             log.info(f"Clicking Button: {button.text}")
             if not test:
                 button.click()
+                cc_check = self.driver.find_element_by_class_name("turbo-checkout-initially-selected")
+            #cc_check = self.driver.find_element_by_class_name("a-declarative")
+                log.info(f"{cc_check}")
+                if cc_check:
+                    log.info("In the CC check")
+                    cc_check.click()
+                    time.sleep(1)
+                    button.click()
             return
         else:
-            if retry < 3:
+            if retry < len(button_xpaths):
                 log.info("Couldn't find button. Lets retry in a sec.")
-                time.sleep(5)
+                time.sleep(1)
                 self.finalize_order_button(test, retry + 1)
             else:
                 log.info(
@@ -457,17 +464,12 @@ class Amazon:
             )
 
     def checkout(self, test):
-        log.info("Clicking continue.")
-        self.driver.save_screenshot("screenshot.png")
-        self.notification_handler.send_notification("Starting Checkout", True)
+        #log.info("Clicking continue.")
+        #self.driver.save_screenshot("screenshot.png")
+        #self.notification_handler.send_notification("Starting Checkout", True)
         if len(self.asin_list) == 1:
-            bn_buttons = [
-                #'//*[@id="buy.now-button"]',
-                '//*[@id="buy-now-button"]',
-                ]
-            for bn_button in bn_buttons:
-                if bn_button:
-                    self.driver.find_element_by_xpath(bn_button).click()
+            log.info("Clicking Buy Now")
+            self.driver.find_element_by_xpath('//*[@id="buy-now-button"]').click()
         else:
             self.driver.find_element_by_xpath('//input[@value="add"]').click()
 
@@ -499,12 +501,12 @@ class Amazon:
                     log.info("Failed to checkout. Returning to stock check.")
                     self.run_item(test=test)
 
-            log.info("Waiting for Place Your Order Page")
-            self.wait_for_pyo_page()
+            #log.info("Waiting for Place Your Order Page")
+            #self.wait_for_pyo_page()
 
-            log.info("Finishing checkout")
-            self.driver.save_screenshot("screenshot.png")
-            self.notification_handler.send_notification("Finishing checkout", True)
+        log.info("Finishing checkout")
+        self.driver.save_screenshot("screenshot.png")
+        self.notification_handler.send_notification("Finishing checkout", True)
 
         self.finalize_order_button(test)
 
@@ -515,4 +517,4 @@ class Amazon:
         self.driver.save_screenshot("screenshot.png")
         self.notification_handler.send_notification("Order Placed", True)
 
-        time.sleep(20)
+        time.sleep(300)
